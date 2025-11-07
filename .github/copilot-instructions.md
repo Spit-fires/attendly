@@ -1,38 +1,89 @@
 ## AI assistant guide for this repo
 
-This project is a SvelteKit 2 + Svelte 5 app, styled with Tailwind CSS v4, statically prerendered (adapter-static) and packaged for Android via Capacitor. It includes a shadcn-svelte UI library setup and a SQLite stack for web/native.
+**Attendly** - Student attendance & payment tracker. SvelteKit 2 (Svelte 5, Tailwind v4, adapter-static) + Capacitor for Android. SQLite for offline-first data.
 
-### Architecture and structure
-- Static site: `adapter-static` with `prerender = true` in `src/routes/+layout.ts`. There is no server runtime; avoid Node-only APIs and server endpoints.
-- Capacitor shell: Android project in `android/` loads the built site from `build/` (`capacitor.config.ts` sets `webDir: 'build'`).
-- UI system:
-  - Tailwind v4 via the Vite plugin (`vite.config.ts`). Theme tokens and dark mode are defined in `src/app.css` (note `@custom-variant dark` and CSS variables).
-  - shadcn-svelte is configured via `components.json` (neutral theme). Local components live under `src/lib/components/ui/**`.
-  - Class merging helper `cn(...)` is in `src/lib/utils.ts` and should be used for conditional Tailwind classes.
-- Svelte 5 patterns: the root layout (`src/routes/+layout.svelte`) uses `$props()` and `{@render children?.()}`. Prefer Svelte 5 runes/APIs in new components.
+### Architecture overview
+- **Static prerendering**: `prerender = true` in `src/routes/+layout.ts`. No server runtime, no SvelteKit endpoints. All data is client-side via SQLite.
+- **Hybrid database**: `src/lib/db/client.ts` auto-detects platform and uses Capacitor SQLite (Android native) or sql.js (web dev). The `initDb()` function initializes the engine; call domain helpers like `listStudents()`, `upsertAttendance()`, etc. — don't write raw SQL in components.
+- **Mobile-first UI**: Fixed bottom nav (`+layout.svelte`), safe-area insets for notch/gesture areas. All routes render under `<main class="pt-safe-top">` with `padding-bottom: env(safe-area-inset-bottom)` on footer.
 
-Key files:
-- `svelte.config.js` — static adapter; vitePreprocess
-- `vite.config.ts` — Tailwind v4 plugin + SvelteKit plugin
-- `capacitor.config.ts` — Capacitor app id/name, `webDir`, and CapacitorSQLite plugin options
-- `src/lib/utils.ts` — `cn` and helper types for Bits/shadcn components
-- `src/lib/components/ui/**` — reusable UI primitives
+### Key implementation patterns
+
+**Svelte 5 runes** (required in all components):
+- State: `let x = $state(...)` not `let x = ...`
+- Props: `let { propName } = $props()` not `export let propName`
+- Rendering children: `{@render children?.()}` in layouts
+- Example: `src/routes/+page.svelte` (daily attendance view) uses `$state` for reactive maps (`attendanceRecords`, `paymentRecords`)
+
+**Database usage**:
+1. Import helpers from `$lib/db/client` (e.g., `listStudents`, `upsertAttendance`, `recordPayment`)
+2. Call `await initDb()` once (typically in `onMount`)
+3. Use typed domain functions; avoid `run()` or `query()` directly unless adding new features
+4. Date format: `toYMD(Date)` helper returns `'YYYY-MM-DD'` strings (required for schema)
+5. Schema in `src/lib/db/schema.ts`: `students`, `attendance`, `payments` with foreign key cascade deletes
+
+**UI composition** (shadcn-svelte + Tailwind v4):
+- Import components: `import { Button } from '$lib/components/ui/button/index.js'` or `import * as Card from '$lib/components/ui/card/index.js'`
+- Conditional classes: Always wrap in `cn(...)` (from `$lib/utils.ts`): `class={cn('base-classes', condition && 'conditional-classes')}`
+- Theme: CSS variables in `src/app.css` (no `tailwind.config.js`). App colors: `--primary: #4a90e2`, status colors for attendance (present/absent/late/offday)
+- Dark mode: `.dark` root class toggles theme via `@custom-variant dark` in `app.css`
+
+**Status colors** (domain-specific):
+- Present/Paid: `text-status-present` (green `#7ed321`)
+- Absent/Due: `text-status-absent` (red `#d0021b`)
+- Late: `text-status-late` (orange `#f5a623`)
+- Unmarked/No Class: `text-status-unmarked` (gray `#e0e0e0`) - Students without a record means no class that day
 
 ### Developer workflows
-- Dev server: use Vite/SvelteKit
-  - Windows (cmd): `pnpm dev`
-- Type checking:
-  - `pnpm check` (runs `svelte-kit sync` then `svelte-check` with `tsconfig.json`)
-  - `pnpm check:watch`
-- Web build and preview:
-  - `pnpm build` → outputs static site to `build/`
-  - `pnpm preview` to serve the build locally
-- Android with Capacitor (scripts reference missing helpers; run these manually):
-  1) `pnpm build`
-  2) `npx cap sync android`
-  3) `npx cap copy android`
-  4) `npx cap open android` (opens Android Studio)
-  Note: package.json has `android:start` referencing `remove:sql:wasm` and `build:native`, but those scripts are not defined in this repo; prefer the manual steps above.
+
+**Development** (Windows cmd):
+```bash
+pnpm dev              # Vite dev server (uses sql.js for database)
+pnpm check            # Type check with svelte-check
+pnpm check:watch      # Watch mode
+```
+
+**Building for Android**:
+```bash
+pnpm build                      # Build static site to build/
+npx cap sync android            # Sync Capacitor config
+npx cap copy android            # Copy assets
+npx cap open android            # Open Android Studio
+# Build APK/AAB in Android Studio (Build > Generate Signed Bundle/APK)
+```
+
+**Common pitfalls**:
+- **Don't use SvelteKit server features**: No `+page.server.ts`, no `load()` with server context, no API routes
+- **Don't bundle sql.js into native**: Wrap web-only imports in try/catch or dynamic `import()` in `client.ts` pattern
+- **Android packaging**: Always run `pnpm build` before `cap sync` — Capacitor serves stale `build/` if you forget
+
+### Adding features
+
+**New route**:
+1. Create `src/routes/feature/+page.svelte`
+2. Add nav link in `src/routes/+layout.svelte` tabs array
+3. Import icons from `@lucide/svelte`
+
+**New database operation**:
+1. Add function to `src/lib/db/client.ts` (follow existing pattern: use `run()` for mutations, `query<Type>()` for reads)
+2. Export and import in component
+3. Always use parameterized queries: `run('INSERT ... VALUES (?)', [value])`
+
+**New UI component**:
+1. Install via shadcn-svelte or place in `src/lib/components/ui/<name>/`
+2. Export from `index.ts` if compound component
+3. Use `cn()` for all dynamic class merging
+
+**Backup/restore pattern** (see `src/routes/settings/+page.svelte`):
+- Export: `exportDb()` dumps all tables to JSON, downloads file
+- Import: `importDb()` reads file input, clears tables, inserts data, reloads page
+
+### Critical files
+- `src/lib/db/client.ts` — Database abstraction (Capacitor/sql.js), all domain queries
+- `src/lib/db/schema.ts` — SQL DDL, TypeScript types
+- `src/routes/+page.svelte` — Main attendance/payment tracking view (complex reactive state example)
+- `src/app.css` — All theme tokens (Tailwind v4 `@theme inline` block)
+- `capacitor.config.ts` — App ID, SQLite plugin config (encryption disabled)
 
 ### Conventions and patterns in this repo
 - Use `$lib` alias for shared code. Example: `import { cn } from '$lib/utils'` or `import Button from '$lib/components/ui/button/button.svelte'`.

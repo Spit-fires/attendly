@@ -125,8 +125,10 @@ export async function getAttendanceForDate(date: string) {
   );
 }
 
+// Note: finalizeDay marks all unmarked students as "offday" (no class that day)
+// This is useful if you want to explicitly mark days when certain students had no class
+// but it's optional - leaving students unmarked also means no class that day
 export async function finalizeDay(date: string) {
-  // Set OFFDAY for any student without a record for the given date
   await run(
     `INSERT INTO attendance (student_id, date, status)
      SELECT s.id, ?, 'offday' FROM students s
@@ -206,11 +208,41 @@ export function toYMD(d: Date) {
 
 export async function exportDb() {
   const backup = await exportBackup();
-  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const jsonData = JSON.stringify(backup, null, 2);
+  const filename = `attendance-backup-${new Date().toISOString().split('T')[0]}.json`;
+
+  // Try Capacitor Filesystem first (Android/iOS)
+  try {
+    const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem');
+    const { Share } = await import('@capacitor/share');
+
+    // Write file to Documents directory
+    const result = await Filesystem.writeFile({
+      path: filename,
+      data: jsonData,
+      directory: Directory.Documents,
+      encoding: Encoding.UTF8
+    });
+
+    // Share the file so user can save it where they want
+    await Share.share({
+      title: 'Export Attendance Data',
+      text: 'Attendance backup file',
+      url: result.uri,
+      dialogTitle: 'Save backup file'
+    });
+
+    return;
+  } catch (e) {
+    console.log('Capacitor Filesystem not available, using browser download:', e);
+  }
+
+  // Fallback to browser download (web dev)
+  const blob = new Blob([jsonData], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `attendance-backup-${new Date().toISOString().split('T')[0]}.json`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -219,7 +251,7 @@ export async function importDb() {
   return new Promise<void>((resolve, reject) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'application/json';
+    input.accept = 'application/json,.json';
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) {

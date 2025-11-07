@@ -41,6 +41,8 @@
 		"@capacitor/android": "^7.4.4",
 		"@capacitor/cli": "^7.4.4",
 		"@capacitor/core": "^7.4.4",
+		"@capacitor/filesystem": "^7.1.4",
+		"@capacitor/share": "^7.0.2",
 		"@sveltejs/adapter-static": "^3.0.10",
 		"jeep-sqlite": "^2.8.0",
 		"sql.js": "^1.13.0"

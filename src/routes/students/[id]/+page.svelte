@@ -41,11 +41,13 @@
 	});
 
 	const attendanceStats = $derived.by(() => {
-		const total = attendance.length;
+		// Exclude "offday" (no class) from attendance calculations
+		const classAttendance = attendance.filter((a) => a.status !== 'offday');
+		const total = classAttendance.length;
 		if (total === 0) return { present: 0, absent: 0, late: 0, percentage: 'N/A' };
-		const present = attendance.filter((a) => a.status === 'present').length;
-		const absent = attendance.filter((a) => a.status === 'absent').length;
-		const late = attendance.filter((a) => a.status === 'late').length;
+		const present = classAttendance.filter((a) => a.status === 'present').length;
+		const absent = classAttendance.filter((a) => a.status === 'absent').length;
+		const late = classAttendance.filter((a) => a.status === 'late').length;
 		const percentage = total > 0 ? ((present + late * 0.5) / total) * 100 : 0;
 		return {
 			present,
@@ -88,9 +90,24 @@
 			case 'late':
 				return 'bg-status-late text-white';
 			case 'offday':
-				return 'bg-status-unmarked';
+				return 'bg-status-unmarked text-muted-foreground';
 			default:
 				return '';
+		}
+	}
+
+	function getStatusLabel(status: AttendanceStatus): string {
+		switch (status) {
+			case 'present':
+				return 'Present';
+			case 'absent':
+				return 'Absent';
+			case 'late':
+				return 'Late';
+			case 'offday':
+				return 'No Class';
+			default:
+				return status;
 		}
 	}
 </script>
@@ -180,7 +197,7 @@
 										})}
 									</span>
 									<span class={cn('px-3 py-1 rounded text-sm font-medium', getStatusClass(record.status))}>
-										{record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+										{getStatusLabel(record.status)}
 									</span>
 								</li>
 							{:else}

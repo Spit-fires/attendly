@@ -33,8 +33,7 @@
 	const attendanceOptions = [
 		{ value: 'present' as const, label: 'Present', color: 'text-status-present' },
 		{ value: 'absent' as const, label: 'Absent', color: 'text-status-absent' },
-		{ value: 'late' as const, label: 'Late', color: 'text-status-late' },
-		{ value: 'offday' as const, label: 'Off Day', color: 'text-status-unmarked' }
+		{ value: 'late' as const, label: 'Late', color: 'text-status-late' }
 	];
 
 	onMount(async () => {

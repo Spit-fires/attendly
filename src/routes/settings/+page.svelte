@@ -7,17 +7,17 @@
 	async function handleExport() {
 		try {
 			await exportDb();
-			alert('Database exported successfully!');
+			alert('Database exported successfully! Check your Downloads or Documents folder, or use the share dialog to save the file.');
 		} catch (e) {
 			console.error(e);
-			alert('Error exporting database.');
+			alert('Error exporting database: ' + (e instanceof Error ? e.message : 'Unknown error'));
 		}
 	}
 
 	async function handleImport() {
 		if (
 			!confirm(
-				'Are you sure you want to import data? This will overwrite all existing data.'
+				'Are you sure you want to import data? This will REPLACE all existing data with the backup file.'
 			)
 		) {
 			return;
@@ -28,7 +28,7 @@
 			window.location.reload();
 		} catch (e) {
 			console.error(e);
-			alert('Error importing database.');
+			alert('Error importing database: ' + (e instanceof Error ? e.message : 'Unknown error'));
 		}
 	}
 </script>
