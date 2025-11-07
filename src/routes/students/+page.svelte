@@ -57,7 +57,7 @@
 <!-- Add Student FAB -->
 <Dialog.Root bind:open={dialogOpen}>
 	<Dialog.Trigger>
-		<Button class="fixed bottom-24 right-6 h-16 w-16 rounded-full shadow-lg" style="background-color: var(--accent);">
+		<Button class="fixed bottom-32 right-6 h-16 w-16 rounded-full shadow-lg" style="background-color: var(--accent);">
 			<Plus class="h-8 w-8" color="#1a1a1a" />
 		</Button>
 	</Dialog.Trigger>

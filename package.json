@@ -2,7 +2,7 @@
 	"name": "attendly",
 	"description": "Student attendance and payment tracking mobile app",
 	"private": true,
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
@@ -17,6 +17,7 @@
 		"electron:start": "pnpm run electron:prepare && cd electron && pnpm run electron:start"
 	},
 	"devDependencies": {
+		"@capacitor/assets": "^3.0.5",
 		"@internationalized/date": "^3.10.0",
 		"@lucide/svelte": "^0.544.0",
 		"@sveltejs/kit": "^2.43.2",

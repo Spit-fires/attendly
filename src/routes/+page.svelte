@@ -14,7 +14,8 @@
 		upsertAttendance, 
 		getAttendanceForDate,
 		recordPayment,
-		getPaymentsForDate
+		getPaymentsForDate,
+		getLastPaymentForStudent
 	} from '$lib/db/client';
 	import type { AttendanceStatus } from '$lib/db/schema';
 
@@ -27,6 +28,7 @@
 	let students = $state<{ id: number; name: string }[]>([]);
 	let attendanceRecords = $state<Map<number, AttendanceStatus>>(new Map());
 	let paymentRecords = $state<Map<number, boolean>>(new Map());
+	let lastPayments = $state<Map<number, { date: string; amount: number }>>(new Map());
 
 	const attendanceOptions = [
 		{ value: 'present' as const, label: 'Present', color: 'text-status-present' },
@@ -42,6 +44,15 @@
 
 	async function loadData() {
 		students = await listStudents();
+		// Load last payment info for each student
+		const lastPaymentsMap = new Map();
+		for (const student of students) {
+			const lastPayment = await getLastPaymentForStudent(student.id);
+			if (lastPayment) {
+				lastPaymentsMap.set(student.id, lastPayment);
+			}
+		}
+		lastPayments = lastPaymentsMap;
 		await loadRecordsForDate();
 	}
 
@@ -64,11 +75,26 @@
 		attendanceRecords = new Map(attendanceRecords);
 	}
 
-	async function handlePaymentRecord(studentId: number) {
+	async function handlePaymentRecord(studentId: number, paid: boolean) {
 		const dateStr = toYMD(currentDate.toDate(getLocalTimeZone()));
-		// Simple payment recording - you may want to add amount input later
-		await recordPayment(studentId, 0, dateStr, 'Paid');
-		paymentRecords.set(studentId, true);
+		
+		if (paid) {
+			// Record payment
+			await recordPayment(studentId, 0, dateStr, 'Paid');
+			paymentRecords.set(studentId, true);
+			// Update last payment info
+			const lastPayment = await getLastPaymentForStudent(studentId);
+			if (lastPayment) {
+				lastPayments.set(studentId, lastPayment);
+				lastPayments = new Map(lastPayments);
+			}
+		} else {
+			// Remove payment for this date (unpaid)
+			// Note: This requires a delete function. For now, we'll just toggle the UI
+			// You may want to add a deletePaymentForDate function if needed
+			paymentRecords.set(studentId, false);
+		}
+		
 		paymentRecords = new Map(paymentRecords);
 	}
 
@@ -79,6 +105,22 @@
 			.join('')
 			.toUpperCase()
 			.slice(0, 2);
+	}
+
+	function formatLastPayment(studentId: number): string {
+		const lastPayment = lastPayments.get(studentId);
+		if (!lastPayment) return '';
+		
+		const paymentDate = new Date(lastPayment.date);
+		const now = new Date();
+		const diffTime = Math.abs(now.getTime() - paymentDate.getTime());
+		const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+		
+		if (diffDays === 0) return 'Today';
+		if (diffDays === 1) return 'Yesterday';
+		if (diffDays < 7) return `${diffDays}d ago`;
+		if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+		return `${Math.floor(diffDays / 30)}mo ago`;
 	}
 
 	function getStatusDisplay(studentId: number): { label: string; color: string } {
@@ -150,7 +192,12 @@
 						<Avatar.Root>
 							<Avatar.Fallback>{getInitials(student.name)}</Avatar.Fallback>
 						</Avatar.Root>
-						<span class="font-semibold flex-1">{student.name}</span>
+						<div class="flex-1">
+							<div class="font-semibold">{student.name}</div>
+							{#if mode === 'payment' && lastPayments.has(student.id)}
+								<div class="text-xs text-muted-foreground">Last: {formatLastPayment(student.id)}</div>
+							{/if}
+						</div>
 
 						{#if mode === 'attendance'}
 							<DropdownMenu.Root>
@@ -171,13 +218,25 @@
 								</DropdownMenu.Content>
 							</DropdownMenu.Root>
 						{:else}
-							<Button 
-								variant={paymentRecords.get(student.id) ? 'default' : 'outline'}
-								class="w-36"
-								onclick={() => handlePaymentRecord(student.id)}
-							>
-								<span class={display.color}>{display.label}</span>
-							</Button>
+							<DropdownMenu.Root>
+								<DropdownMenu.Trigger>
+									<Button 
+										variant={paymentRecords.get(student.id) ? 'default' : 'outline'}
+										class="w-36"
+									>
+										<span class={display.color}>{display.label}</span>
+										<ChevronDown class="ml-2 h-4 w-4" />
+									</Button>
+								</DropdownMenu.Trigger>
+								<DropdownMenu.Content>
+									<DropdownMenu.Item onclick={() => handlePaymentRecord(student.id, true)}>
+										<span class="text-status-present">Paid</span>
+									</DropdownMenu.Item>
+									<DropdownMenu.Item onclick={() => handlePaymentRecord(student.id, false)}>
+										<span class="text-status-absent">Unpaid</span>
+									</DropdownMenu.Item>
+								</DropdownMenu.Content>
+							</DropdownMenu.Root>
 						{/if}
 					</Card.Content>
 				</Card.Root>

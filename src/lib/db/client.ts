@@ -162,6 +162,14 @@ export async function getStudentPayments(studentId: number) {
   );
 }
 
+export async function getLastPaymentForStudent(studentId: number) {
+  const rows = await query<{ date: string; amount: number }>(
+    'SELECT date, amount FROM payments WHERE student_id = ? ORDER BY date DESC LIMIT 1',
+    [studentId]
+  );
+  return rows[0] ?? null;
+}
+
 // Backup/export in a portable JSON format independent of engine
 export async function exportBackup() {
   const students = await query('SELECT * FROM students ORDER BY id');
