@@ -15,7 +15,9 @@
 		getAttendanceForDate,
 		recordPayment,
 		getPaymentsForDate,
-		getLastPaymentForStudent
+		getLastPaymentForStudent,
+		deleteAttendanceForDate,
+		deletePaymentForDate
 	} from '$lib/db/client';
 	import type { AttendanceStatus } from '$lib/db/schema';
 
@@ -69,8 +71,17 @@
 
 	async function handleAttendanceChange(studentId: number, status: AttendanceStatus) {
 		const dateStr = toYMD(currentDate.toDate(getLocalTimeZone()));
-		await upsertAttendance(dateStr, studentId, status);
-		attendanceRecords.set(studentId, status);
+		const currentStatus = attendanceRecords.get(studentId);
+		
+		// If clicking the same status, unselect (delete the record)
+		if (currentStatus === status) {
+			await deleteAttendanceForDate(studentId, dateStr);
+			attendanceRecords.delete(studentId);
+		} else {
+			// Otherwise, set the new status
+			await upsertAttendance(dateStr, studentId, status);
+			attendanceRecords.set(studentId, status);
+		}
 		attendanceRecords = new Map(attendanceRecords);
 	}
 
@@ -89,9 +100,8 @@
 			}
 		} else {
 			// Remove payment for this date (unpaid)
-			// Note: This requires a delete function. For now, we'll just toggle the UI
-			// You may want to add a deletePaymentForDate function if needed
-			paymentRecords.set(studentId, false);
+			await deletePaymentForDate(studentId, dateStr);
+			paymentRecords.delete(studentId);
 		}
 		
 		paymentRecords = new Map(paymentRecords);
@@ -214,6 +224,19 @@
 											<span class={option.color}>{option.label}</span>
 										</DropdownMenu.Item>
 									{/each}
+									{#if attendanceRecords.has(student.id)}
+										<DropdownMenu.Separator />
+										<DropdownMenu.Item 
+											onclick={async () => {
+												const dateStr = toYMD(currentDate.toDate(getLocalTimeZone()));
+												await deleteAttendanceForDate(student.id, dateStr);
+												attendanceRecords.delete(student.id);
+												attendanceRecords = new Map(attendanceRecords);
+											}}
+										>
+											<span class="text-muted-foreground">Clear</span>
+										</DropdownMenu.Item>
+									{/if}
 								</DropdownMenu.Content>
 							</DropdownMenu.Root>
 						{:else}

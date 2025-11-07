@@ -172,6 +172,14 @@ export async function getLastPaymentForStudent(studentId: number) {
   return rows[0] ?? null;
 }
 
+export async function deleteAttendanceForDate(studentId: number, date: string) {
+  await run('DELETE FROM attendance WHERE student_id = ? AND date = ?', [studentId, date]);
+}
+
+export async function deletePaymentForDate(studentId: number, date: string) {
+  await run('DELETE FROM payments WHERE student_id = ? AND date = ?', [studentId, date]);
+}
+
 // Backup/export in a portable JSON format independent of engine
 export async function exportBackup() {
   const students = await query('SELECT * FROM students ORDER BY id');
