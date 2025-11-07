@@ -21,3 +21,17 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Android
+/android/app/build/
+/android/app/release/
+/android/.gradle/
+/android/build/
+/android/local.properties
+/android/.idea/
+/android/*.iml
+*.apk
+*.aab
+
+# Capacitor
+ios/

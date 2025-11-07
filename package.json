@@ -1,7 +1,8 @@
 {
-	"name": "sv-template",
+	"name": "attendly",
+	"description": "Student attendance and payment tracking mobile app",
 	"private": true,
-	"version": "0.0.1",
+	"version": "0.1.0",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
@@ -9,15 +10,22 @@
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"android:start": "pnpm run build && npx cap sync android && npx cap copy android && npx cap open android",
+		"electron:install": "cd electron && pnpm install && cd ..",
+		"electron:prepare": "pnpm run build && npx cap sync @capacitor-community/electron && npx cap copy @capacitor-community/electron",
+		"electron:start": "pnpm run electron:prepare && cd electron && pnpm run electron:start"
 	},
 	"devDependencies": {
-		"@lucide/svelte": "^0.546.0",
-		"@sveltejs/adapter-netlify": "^5.2.3",
+		"@internationalized/date": "^3.10.0",
+		"@lucide/svelte": "^0.544.0",
 		"@sveltejs/kit": "^2.43.2",
 		"@sveltejs/vite-plugin-svelte": "^6.2.0",
 		"@tailwindcss/vite": "^4.1.13",
+		"@tanstack/table-core": "^8.21.3",
+		"bits-ui": "^2.14.2",
 		"clsx": "^2.1.1",
+		"layerchart": "2.0.0-next.27",
 		"svelte": "^5.39.5",
 		"svelte-check": "^4.3.2",
 		"tailwind-merge": "^3.3.1",
@@ -26,5 +34,14 @@
 		"tw-animate-css": "^1.4.0",
 		"typescript": "^5.9.2",
 		"vite": "^7.1.7"
+	},
+	"dependencies": {
+		"@capacitor-community/sqlite": "^7.0.2",
+		"@capacitor/android": "^7.4.4",
+		"@capacitor/cli": "^7.4.4",
+		"@capacitor/core": "^7.4.4",
+		"@sveltejs/adapter-static": "^3.0.10",
+		"jeep-sqlite": "^2.8.0",
+		"sql.js": "^1.13.0"
 	}
 }

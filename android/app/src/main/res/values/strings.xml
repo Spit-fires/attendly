@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">attendly</string>
+    <string name="title_activity_main">attendly</string>
+    <string name="package_name">com.fahad.attendly</string>
+    <string name="custom_url_scheme">com.fahad.attendly</string>
+</resources>
