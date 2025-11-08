@@ -1,4 +1,7 @@
 import { SCHEMA_SQL, type AttendanceStatus } from './schema';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 
 // Unified DB client using Capacitor SQLite when available, with sql.js fallback in web dev.
 
@@ -219,11 +222,8 @@ export async function exportDb() {
   const jsonData = JSON.stringify(backup, null, 2);
   const filename = `attendance-backup-${new Date().toISOString().split('T')[0]}.json`;
 
-  // Try Capacitor Filesystem first (Android/iOS)
-  try {
-    const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem');
-    const { Share } = await import('@capacitor/share');
-
+  // Use Capacitor Filesystem on native platforms
+  if (Capacitor.isNativePlatform()) {
     // Write file to Documents directory
     const result = await Filesystem.writeFile({
       path: filename,
@@ -241,11 +241,9 @@ export async function exportDb() {
     });
 
     return;
-  } catch (e) {
-    console.log('Capacitor Filesystem not available, using browser download:', e);
   }
 
-  // Fallback to browser download (web dev)
+  // Fallback to browser download (web dev only)
   const blob = new Blob([jsonData], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
