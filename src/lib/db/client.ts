@@ -224,23 +224,59 @@ export async function exportDb() {
 
   // Use Capacitor Filesystem on native platforms
   if (Capacitor.isNativePlatform()) {
-    // Write file to Documents directory
-    const result = await Filesystem.writeFile({
-      path: filename,
-      data: jsonData,
-      directory: Directory.Documents,
-      encoding: Encoding.UTF8
-    });
+    try {
+      // First, write to cache (always works, no permissions needed)
+      const cacheResult = await Filesystem.writeFile({
+        path: filename,
+        data: jsonData,
+        directory: Directory.Cache,
+        encoding: Encoding.UTF8
+      });
 
-    // Share the file so user can save it where they want
-    await Share.share({
-      title: 'Export Attendance Data',
-      text: 'Attendance backup file',
-      url: result.uri,
-      dialogTitle: 'Save backup file'
-    });
+      // Try to write to Downloads folder
+      try {
+        // Check and request permissions for external storage
+        const permission = await Filesystem.checkPermissions();
+        
+        if (permission.publicStorage !== 'granted') {
+          const requested = await Filesystem.requestPermissions();
+          if (requested.publicStorage !== 'granted') {
+            // Permission denied, use share dialog
+            throw new Error('Permission denied');
+          }
+        }
 
-    return;
+        // Write to Downloads folder
+        await Filesystem.writeFile({
+          path: `Download/${filename}`,
+          data: jsonData,
+          directory: Directory.ExternalStorage,
+          encoding: Encoding.UTF8
+        });
+        
+        // Success! Also show share dialog
+        await Share.share({
+          title: 'Backup Saved to Downloads',
+          text: `Backup saved to Downloads folder as ${filename}`,
+          url: cacheResult.uri,
+          dialogTitle: 'Share backup file'
+        });
+      } catch (downloadError) {
+        // If Downloads folder write fails, just use share dialog
+        console.log('Could not write to Downloads, using share dialog:', downloadError);
+        await Share.share({
+          title: 'Export Attendance Data',
+          text: 'Save your attendance backup',
+          url: cacheResult.uri,
+          dialogTitle: 'Save backup file'
+        });
+      }
+
+      return;
+    } catch (e) {
+      console.error('Export error:', e);
+      throw e;
+    }
   }
 
   // Fallback to browser download (web dev only)
