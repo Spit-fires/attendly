@@ -220,7 +220,7 @@ export function toYMD(d: Date) {
 export async function exportDb() {
   const backup = await exportBackup();
   const jsonData = JSON.stringify(backup, null, 2);
-  const filename = `attendance-backup-${new Date().toISOString().split('T')[0]}.json`;
+  const filename = `attendance-backup-${new Date().toISOString().split('T')[0]}-${Math.random().toString(36).substring(2, 15)}.json`;
 
   // Use Capacitor Filesystem on native platforms
   if (Capacitor.isNativePlatform()) {
