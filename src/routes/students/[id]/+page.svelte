@@ -5,14 +5,16 @@
 		getStudentPayments,
 		initDb,
 		updateStudent,
-		deleteStudent
+		deleteStudent,
+		listGroups
 	} from '$lib/db/client';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
-	import { ArrowLeft, Edit, Trash2 } from '@lucide/svelte';
+	import { ArrowLeft, Edit, Trash2, ChevronDown } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as ToggleGroup from '$lib/components/ui/toggle-group/index.js';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import { Calendar } from '$lib/components/ui/calendar/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -21,20 +23,25 @@
 	import { cn } from '$lib/utils';
 	import type { AttendanceStatus } from '$lib/db/schema';
 
-	let student = $state<{ id: number; name: string } | null>(null);
+	let student = $state<{ id: number; name: string; group_id: number | null; payment_amount: number } | null>(null);
+	let groups = $state<{ id: number; name: string }[]>([]);
 	let attendance = $state<{ date: string; status: AttendanceStatus }[]>([]);
 	let payments = $state<{ date: string; amount: number; note: string }[]>([]);
 	let viewMode = $state<'attendance' | 'payment'>('attendance');
 	let editDialogOpen = $state(false);
 	let editedName = $state('');
+	let editedGroupId = $state<number | null>(null);
+	let editedPaymentAmount = $state('');
 
 	onMount(async () => {
 		const id = Number($page.params.id);
 		if (Number.isNaN(id)) return;
 		await initDb();
-		student = await getStudent(id);
+		[student, groups] = await Promise.all([getStudent(id), listGroups()]);
 		if (student) {
 			editedName = student.name;
+			editedGroupId = student.group_id;
+			editedPaymentAmount = student.payment_amount.toString();
 		}
 		attendance = await getStudentAttendanceHistory(id);
 		payments = await getStudentPayments(id);
@@ -68,8 +75,11 @@
 
 	async function handleUpdate() {
 		if (!student || !editedName.trim()) return;
-		await updateStudent(student.id, editedName.trim());
+		const payment = editedPaymentAmount ? parseFloat(editedPaymentAmount) : 0;
+		await updateStudent(student.id, editedName.trim(), editedGroupId, payment);
 		student.name = editedName.trim();
+		student.group_id = editedGroupId;
+		student.payment_amount = payment;
 		editDialogOpen = false;
 	}
 
@@ -135,8 +145,44 @@
 						<Dialog.Title>Edit Student</Dialog.Title>
 					</Dialog.Header>
 					<div class="grid gap-4 py-4">
-						<Label for="name">Student's Full Name</Label>
-						<Input id="name" bind:value={editedName} />
+						<div class="grid gap-2">
+							<Label for="name">Student's Full Name</Label>
+							<Input id="name" bind:value={editedName} />
+						</div>
+						
+						<div class="grid gap-2">
+							<Label for="edit-group">Group</Label>
+							<DropdownMenu.Root>
+								<DropdownMenu.Trigger>
+									<Button variant="outline" class="w-full justify-between" id="edit-group">
+										{editedGroupId ? groups.find(g => g.id === editedGroupId)?.name || 'No group' : 'No group'}
+										<ChevronDown class="ml-2 h-4 w-4" />
+									</Button>
+								</DropdownMenu.Trigger>
+								<DropdownMenu.Content>
+									<DropdownMenu.Item onclick={() => { editedGroupId = null; }}>
+										No group
+									</DropdownMenu.Item>
+									{#each groups as group}
+										<DropdownMenu.Item onclick={() => { editedGroupId = group.id; }}>
+											{group.name}
+										</DropdownMenu.Item>
+									{/each}
+								</DropdownMenu.Content>
+							</DropdownMenu.Root>
+						</div>
+
+						<div class="grid gap-2">
+							<Label for="edit-payment">Payment Amount per Class (৳)</Label>
+							<Input 
+								id="edit-payment" 
+								type="number" 
+								step="0.01" 
+								min="0"
+								bind:value={editedPaymentAmount}
+								placeholder="0.00"
+							/>
+						</div>
 					</div>
 					<Dialog.Footer class="flex justify-between w-full">
 						<Button variant="destructive" onclick={handleDelete}>
@@ -222,7 +268,7 @@
 											day: 'numeric'
 										})}
 									</span>
-									<span class="text-green-600 font-bold">${p.amount}</span>
+									<span class="text-green-600 font-bold">৳{p.amount}</span>
 								</li>
 							{:else}
 								<p class="text-center text-muted-foreground p-10">No payment history.</p>

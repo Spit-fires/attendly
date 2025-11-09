@@ -16,11 +16,12 @@
 - Example: `src/routes/+page.svelte` (daily attendance view) uses `$state` for reactive maps (`attendanceRecords`, `paymentRecords`)
 
 **Database usage**:
-1. Import helpers from `$lib/db/client` (e.g., `listStudents`, `upsertAttendance`, `recordPayment`)
+1. Import helpers from `$lib/db/client` (e.g., `listStudents`, `upsertAttendance`, `recordPayment`, `listGroups`, `getGroupStats`)
 2. Call `await initDb()` once (typically in `onMount`)
 3. Use typed domain functions; avoid `run()` or `query()` directly unless adding new features
 4. Date format: `toYMD(Date)` helper returns `'YYYY-MM-DD'` strings (required for schema)
-5. Schema in `src/lib/db/schema.ts`: `students`, `attendance`, `payments` with foreign key cascade deletes
+5. Schema v2 in `src/lib/db/schema.ts`: `groups`, `students` (with `group_id`, `payment_amount`), `attendance`, `payments` with foreign key cascade deletes
+6. Student grouping: Students can optionally belong to one group. Groups have stats (30-day payment totals, student count).
 
 **UI composition** (shadcn-svelte + Tailwind v4):
 - Import components: `import { Button } from '$lib/components/ui/button/index.js'` or `import * as Card from '$lib/components/ui/card/index.js'`
@@ -59,6 +60,20 @@ npx cap open android            # Open Android Studio
 
 ### Adding features
 
+**Student grouping (batches)**:
+- Groups are created in `/groups` page with name only
+- Students can be assigned to a group with optional payment amount per class
+- Groups show 30-day payment totals and student count in `/groups/[id]`
+- Main attendance page has group filter dropdown (above mode toggle)
+- Group filtering uses `$derived` for reactivity: `let students = $derived(selectedGroupId === null ? allStudents : allStudents.filter(s => s.group_id === selectedGroupId))`
+
+**Partial payment entry**:
+- Payment mode allows entering custom amounts via "Partial Payment..." menu item
+- Opens dialog with amount input field
+- If student has `payment_amount > 0`, "Paid" button uses that amount automatically
+- Otherwise, opens partial payment dialog to enter amount
+- Payment records now store actual amount (not just boolean)
+
 **New route**:
 1. Create `src/routes/feature/+page.svelte`
 2. Add nav link in `src/routes/+layout.svelte` tabs array
@@ -75,8 +90,10 @@ npx cap open android            # Open Android Studio
 3. Use `cn()` for all dynamic class merging
 
 **Backup/restore pattern** (see `src/routes/settings/+page.svelte`):
-- Export: `exportDb()` dumps all tables to JSON, downloads file
-- Import: `importDb()` reads file input, clears tables, inserts data, reloads page
+- Export: `exportDb()` dumps all tables to JSON (version 2: includes groups, group_id, payment_amount), downloads file via Capacitor Filesystem/Share
+- Import: `importDb()` reads file input, supports both v1 (legacy) and v2 formats, clears tables, inserts data, reloads page
+- Platform detection: Native uses Capacitor plugins, web uses DOM download
+- Backward compatibility: v1 backups automatically migrate to v2 (null group_id, 0 payment_amount)
 
 ### Critical files
 - `src/lib/db/client.ts` — Database abstraction (Capacitor/sql.js), all domain queries

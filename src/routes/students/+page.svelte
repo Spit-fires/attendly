@@ -1,27 +1,48 @@
 <script lang="ts">
-	import { addStudent, listStudents, initDb } from '$lib/db/client';
+	import { addStudent, listStudents, listGroups, initDb } from '$lib/db/client';
 	import { Plus } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
+	import { ChevronDown } from '@lucide/svelte';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 
 	let name = $state('');
-	let students: { id: number; name: string }[] = $state([]);
+	let paymentAmount = $state('');
+	let selectedGroupId = $state<number | null>(null);
+	let students: { id: number; name: string; group_id: number | null; payment_amount: number }[] = $state([]);
+	let groups = $state<{ id: number; name: string }[]>([]);
 	let dialogOpen = $state(false);
 
 	onMount(async () => {
 		await initDb();
-		students = await listStudents();
+		// Check if redirected from group detail page with group query param
+		const urlParams = new URLSearchParams(window.location.search);
+		const groupParam = urlParams.get('group');
+		if (groupParam) {
+			selectedGroupId = parseInt(groupParam);
+			dialogOpen = true;
+		}
+		
+		await loadData();
 	});
+
+	async function loadData() {
+		[students, groups] = await Promise.all([listStudents(), listGroups()]);
+	}
 
 	async function onAdd() {
 		if (!name.trim()) return;
-		await addStudent(name.trim());
-		students = await listStudents();
+		const payment = paymentAmount ? parseFloat(paymentAmount) : 0;
+		await addStudent(name.trim(), selectedGroupId, payment);
+		await loadData();
 		name = '';
+		paymentAmount = '';
+		selectedGroupId = null;
 		dialogOpen = false;
 	}
 </script>
@@ -64,18 +85,52 @@
 	<Dialog.Content class="sm:max-w-[425px]">
 		<Dialog.Header>
 			<Dialog.Title>Add Student</Dialog.Title>
-			<Dialog.Description>Enter the full name of the new student.</Dialog.Description>
+			<Dialog.Description>Enter student details.</Dialog.Description>
 		</Dialog.Header>
 		<div class="grid gap-4 py-4">
-			<div class="grid grid-cols-4 items-center gap-4">
-				<Label for="name" class="text-right">Name</Label>
+			<div class="grid gap-2">
+				<Label for="name">Name</Label>
 				<Input 
 					id="name" 
 					bind:value={name} 
-					class="col-span-3" 
+					placeholder="Full name"
 					onkeydown={(e) => {
 						if (e.key === 'Enter') onAdd();
 					}}
+				/>
+			</div>
+			
+			<div class="grid gap-2">
+				<Label for="group">Group (Optional)</Label>
+				<DropdownMenu.Root>
+					<DropdownMenu.Trigger>
+						<Button variant="outline" class="w-full justify-between" id="group">
+							{selectedGroupId ? groups.find(g => g.id === selectedGroupId)?.name || 'No group' : 'No group'}
+							<ChevronDown class="ml-2 h-4 w-4" />
+						</Button>
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Content>
+						<DropdownMenu.Item onclick={() => { selectedGroupId = null; }}>
+							No group
+						</DropdownMenu.Item>
+						{#each groups as group}
+							<DropdownMenu.Item onclick={() => { selectedGroupId = group.id; }}>
+								{group.name}
+							</DropdownMenu.Item>
+						{/each}
+					</DropdownMenu.Content>
+				</DropdownMenu.Root>
+			</div>
+
+			<div class="grid gap-2">
+				<Label for="payment">Payment Amount per Class (৳)</Label>
+				<Input 
+					id="payment" 
+					type="number" 
+					step="0.01" 
+					min="0"
+					bind:value={paymentAmount} 
+					placeholder="0.00"
 				/>
 			</div>
 		</div>

@@ -1,13 +1,14 @@
 <script lang="ts">
 	import '../app.css';
 	import { page } from '$app/stores';
-	import { Users, Calendar, Settings } from '@lucide/svelte';
+	import { Users, Calendar, Settings, FolderKanban } from '@lucide/svelte';
 	import { cn } from '$lib/utils';
 
 	let { children } = $props();
 
 	const tabs = [
 		{ href: '/', label: 'Today', icon: Calendar },
+		{ href: '/groups', label: 'Groups', icon: FolderKanban },
 		{ href: '/students', label: 'Students', icon: Users },
 		{ href: '/settings', label: 'Settings', icon: Settings }
 	];

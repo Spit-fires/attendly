@@ -89,22 +89,89 @@ export async function query<T extends Row = Row>(sql: string, params: unknown[] 
   }
 }
 
-// Domain helpers
-export async function addStudent(name: string) {
-  await run('INSERT INTO students (name) VALUES (?)', [name]);
+// Group helpers
+export async function addGroup(name: string) {
+  await run('INSERT INTO groups (name) VALUES (?)', [name]);
 }
 
-export async function listStudents() {
-  return query<{ id: number; name: string }>('SELECT id, name FROM students ORDER BY name');
+export async function listGroups() {
+  return query<{ id: number; name: string }>('SELECT id, name FROM groups ORDER BY name');
 }
 
-export async function getStudent(id: number) {
-  const rows = await query<{ id: number; name: string }>('SELECT id, name FROM students WHERE id = ?', [id]);
+export async function getGroup(id: number) {
+  const rows = await query<{ id: number; name: string }>('SELECT id, name FROM groups WHERE id = ?', [id]);
   return rows[0] ?? null;
 }
 
-export async function updateStudent(id: number, name: string) {
-  await run('UPDATE students SET name = ? WHERE id = ?', [name, id]);
+export async function updateGroup(id: number, name: string) {
+  await run('UPDATE groups SET name = ? WHERE id = ?', [name, id]);
+}
+
+export async function deleteGroup(id: number) {
+  // Set students' group_id to NULL when group is deleted
+  await run('UPDATE students SET group_id = NULL WHERE group_id = ?', [id]);
+  await run('DELETE FROM groups WHERE id = ?', [id]);
+}
+
+export async function getGroupStats(groupId: number, days: number = 30) {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  const dateStr = toYMD(startDate);
+  
+  const paymentRows = await query<{ total: number }>(
+    `SELECT COALESCE(SUM(p.amount), 0) as total
+     FROM payments p
+     JOIN students s ON p.student_id = s.id
+     WHERE s.group_id = ? AND p.date >= ?`,
+    [groupId, dateStr]
+  );
+  
+  const studentRows = await query<{ count: number }>(
+    'SELECT COUNT(*) as count FROM students WHERE group_id = ?',
+    [groupId]
+  );
+  
+  return {
+    totalCollected: paymentRows[0]?.total ?? 0,
+    studentCount: studentRows[0]?.count ?? 0
+  };
+}
+
+// Domain helpers
+export async function addStudent(name: string, groupId: number | null = null, paymentAmount: number = 0) {
+  await run('INSERT INTO students (name, group_id, payment_amount) VALUES (?, ?, ?)', [name, groupId, paymentAmount]);
+}
+
+export async function listStudents(groupId?: number) {
+  if (groupId !== undefined) {
+    return query<{ id: number; name: string; group_id: number | null; payment_amount: number }>(
+      'SELECT id, name, group_id, payment_amount FROM students WHERE group_id = ? ORDER BY name',
+      [groupId]
+    );
+  }
+  return query<{ id: number; name: string; group_id: number | null; payment_amount: number }>(
+    'SELECT id, name, group_id, payment_amount FROM students ORDER BY name'
+  );
+}
+
+export async function getStudent(id: number) {
+  const rows = await query<{ id: number; name: string; group_id: number | null; payment_amount: number }>(
+    'SELECT id, name, group_id, payment_amount FROM students WHERE id = ?',
+    [id]
+  );
+  return rows[0] ?? null;
+}
+
+export async function updateStudent(id: number, name: string, groupId?: number | null, paymentAmount?: number) {
+  if (groupId !== undefined && paymentAmount !== undefined) {
+    await run('UPDATE students SET name = ?, group_id = ?, payment_amount = ? WHERE id = ?', [name, groupId, paymentAmount, id]);
+  } else if (groupId !== undefined) {
+    await run('UPDATE students SET name = ?, group_id = ? WHERE id = ?', [name, groupId, id]);
+  } else if (paymentAmount !== undefined) {
+    await run('UPDATE students SET name = ?, payment_amount = ? WHERE id = ?', [name, paymentAmount, id]);
+  } else {
+    await run('UPDATE students SET name = ? WHERE id = ?', [name, id]);
+  }
 }
 
 export async function deleteStudent(id: number) {
@@ -185,22 +252,32 @@ export async function deletePaymentForDate(studentId: number, date: string) {
 
 // Backup/export in a portable JSON format independent of engine
 export async function exportBackup() {
+  const groups = await query('SELECT * FROM groups ORDER BY id');
   const students = await query('SELECT * FROM students ORDER BY id');
   const attendance = await query('SELECT * FROM attendance ORDER BY date, student_id');
   const payments = await query('SELECT * FROM payments ORDER BY date, student_id');
-  return { version: 1, exported_at: new Date().toISOString(), students, attendance, payments };
+  return { version: 2, exported_at: new Date().toISOString(), groups, students, attendance, payments };
 }
 
 export async function importBackup(data: any) {
-  if (!data || data.version !== 1) throw new Error('Unsupported backup format');
+  if (!data || (data.version !== 1 && data.version !== 2)) throw new Error('Unsupported backup format');
   // naive replace: clear and insert
   await run('DELETE FROM payments');
   await run('DELETE FROM attendance');
   await run('DELETE FROM students');
+  await run('DELETE FROM groups');
 
-  // Insert students first to maintain IDs
+  // Insert groups first
+  for (const g of data.groups ?? []) {
+    await run('INSERT INTO groups (id, name, created_at) VALUES (?,?,?)', [g.id, g.name, g.created_at ?? null]);
+  }
+
+  // Insert students (with optional group_id and payment_amount for v2)
   for (const s of data.students ?? []) {
-    await run('INSERT INTO students (id, name, created_at) VALUES (?,?,?)', [s.id, s.name, s.created_at ?? null]);
+    await run(
+      'INSERT INTO students (id, name, group_id, payment_amount, created_at) VALUES (?,?,?,?,?)',
+      [s.id, s.name, s.group_id ?? null, s.payment_amount ?? 0, s.created_at ?? null]
+    );
   }
   for (const a of data.attendance ?? []) {
     await run('INSERT INTO attendance (id, student_id, date, status) VALUES (?,?,?,?)', [a.id ?? null, a.student_id, a.date, a.status]);
